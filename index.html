@@ -10,7 +10,7 @@
             padding: 0;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        
+
         body {
             background: linear-gradient(135deg, #6e8efb, #a777e3);
             height: 100vh;
@@ -18,7 +18,7 @@
             justify-content: center;
             align-items: center;
         }
-        
+
         .container {
             background: white;
             padding: 40px;
@@ -28,29 +28,29 @@
             max-width: 400px;
             width: 90%;
         }
-        
+
         h1 {
             color: #333;
             margin-bottom: 10px;
         }
-        
+
         .subtitle {
             color: #666;
             margin-bottom: 30px;
         }
-        
+
         .form-group {
             margin-bottom: 20px;
             text-align: left;
         }
-        
+
         label {
             display: block;
             margin-bottom: 5px;
             color: #333;
             font-weight: 500;
         }
-        
+
         input {
             width: 100%;
             padding: 15px;
@@ -59,12 +59,12 @@
             font-size: 16px;
             transition: border-color 0.3s;
         }
-        
-        input:focus {
-            border-color: #5c6bc0;
-            outline: none;
-        }
-        
+
+            input:focus {
+                border-color: #5c6bc0;
+                outline: none;
+            }
+
         button {
             width: 100%;
             padding: 15px;
@@ -76,24 +76,30 @@
             cursor: pointer;
             transition: background 0.3s;
         }
-        
-        button:hover {
-            background: #3f51b5;
-        }
-        
-        button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-        
+
+            button:hover {
+                background: #3f51b5;
+            }
+
+            button:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+            }
+
         .error {
             color: #e53935;
             margin-top: 15px;
             min-height: 20px;
+            font-size: 14px;
         }
-        
+
         .loading {
             color: #5c6bc0;
+            margin-top: 15px;
+        }
+
+        .success {
+            color: #4caf50;
             margin-top: 15px;
         }
     </style>
@@ -102,97 +108,140 @@
     <div class="container">
         <h1>Secure Chat Room</h1>
         <p class="subtitle">Enter password to join the conversation</p>
-        
+
         <div class="form-group">
             <label for="passwordInput">Password:</label>
             <input type="password" id="passwordInput" placeholder="Enter chat password" autocomplete="off">
         </div>
-        
+
         <button id="loginBtn">Enter Chat Room</button>
-        
+
         <div class="error" id="errorMessage"></div>
         <div class="loading" id="loadingMessage"></div>
+        <div class="success" id="successMessage"></div>
     </div>
 
     <!-- Supabase CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
+
     <script>
         // Supabase configuration - REPLACE WITH YOUR ACTUAL CREDENTIALS
         const SUPABASE_URL = 'https://bnjetjarkqearjefhzll.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuamV0amFya3FlYXJqZWZoemxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5OTc5NzMsImV4cCI6MjA3NDU3Mzk3M30.rJa94S-ZsNd_kamRgY38FA3TaxyWDt8DtB2pfrKHLlk';
-        
+
         // Initialize Supabase
         const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        
+
         // DOM elements
         const passwordInput = document.getElementById('passwordInput');
         const loginBtn = document.getElementById('loginBtn');
         const errorMessage = document.getElementById('errorMessage');
         const loadingMessage = document.getElementById('loadingMessage');
-        
+        const successMessage = document.getElementById('successMessage');
+
         // Check if already authenticated
         if (localStorage.getItem('chat_authenticated') === 'true') {
+            console.log('Already authenticated, redirecting to chat...');
             window.location.href = 'chat.html';
         }
-        
+
         // Login function
         async function verifyPassword() {
             const password = passwordInput.value.trim();
+
+            // Clear messages
             errorMessage.textContent = '';
-            loadingMessage.textContent = 'Verifying...';
-            loginBtn.disabled = true;
-            
+            loadingMessage.textContent = '';
+            successMessage.textContent = '';
+
+            // Validate input
             if (!password) {
                 errorMessage.textContent = 'Please enter a password';
-                loadingMessage.textContent = '';
-                loginBtn.disabled = false;
+                passwordInput.focus();
                 return;
             }
-            
+
+            // Show loading state
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Verifying...';
+            loadingMessage.textContent = 'Checking password...';
+
             try {
+                console.log('Verifying password...');
+
                 // Call Supabase function to verify password
                 const { data, error } = await supabase.rpc('verify_chat_password', {
                     input_password: password
                 });
-                
+
                 if (error) {
-                    throw error;
+                    console.error('Supabase error:', error);
+                    throw new Error(error.message || 'Connection error');
                 }
-                
-                if (data.success) {
-                    // Password correct - store authentication
+
+                console.log('Response received:', data);
+
+                if (data && data.success) {
+                    // Password correct
+                    successMessage.textContent = 'Password correct! Redirecting...';
+
+                    // Store authentication
                     localStorage.setItem('chat_authenticated', 'true');
                     localStorage.setItem('last_login', new Date().toISOString());
-                    
-                    // Redirect to chat page
-                    window.location.href = 'chat.html';
+
+                    // Wait a moment to show success message
+                    setTimeout(() => {
+                        window.location.href = 'chat.html';
+                    }, 1000);
+
                 } else {
-                    errorMessage.textContent = data.error || 'Invalid password';
+                    // Password incorrect
+                    errorMessage.textContent = data?.error || 'Invalid password';
                     passwordInput.value = '';
                     passwordInput.focus();
                 }
+
             } catch (error) {
                 console.error('Error:', error);
-                errorMessage.textContent = 'Error connecting to chat. Please try again.';
+                errorMessage.textContent = 'Error: ' + error.message;
             } finally {
-                loadingMessage.textContent = '';
+                // Reset button state
                 loginBtn.disabled = false;
+                loginBtn.textContent = 'Enter Chat Room';
+                loadingMessage.textContent = '';
             }
         }
-        
+
         // Event listeners
         loginBtn.addEventListener('click', verifyPassword);
-        
+
         passwordInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 verifyPassword();
             }
         });
-        
+
+        // Debug: Test Supabase connection
+        async function testConnection() {
+            try {
+                console.log('Testing Supabase connection...');
+                const { data, error } = await supabase.rpc('verify_chat_password', {
+                    input_password: 'test'
+                });
+                console.log('Connection test result:', { data, error });
+            } catch (error) {
+                console.error('Connection test failed:', error);
+            }
+        }
+
+        // Test connection on page load (optional)
+        // testConnection();
+
         // Focus on password input when page loads
-        passwordInput.focus();
+        window.addEventListener('load', () => {
+            passwordInput.focus();
+            console.log('Page loaded, Supabase initialized');
+        });
     </script>
 </body>
-
 </html>
