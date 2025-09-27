@@ -204,17 +204,17 @@
         <div id="password-page" class="page">
             <h1>Secure Chat Login</h1>
             <div class="form-group">
-                <label for="password-input">Enter Password:</label>
-                <input type="password" id="password-input" placeholder="Enter your password">
+                <label for="password-input">Enter Chat Password:</label>
+                <input type="password" id="password-input" placeholder="Enter the chat password">
             </div>
-            <button id="login-button">Login</button>
+            <button id="login-button">Login to Chat</button>
             <div id="error-message"></div>
         </div>
 
         <!-- Chat Page -->
         <div id="chat-page" class="page hidden">
             <div class="header">
-                <h1>Secure Chat</h1>
+                <h1>Secure Chat Room</h1>
                 <button id="logout-button" class="logout-btn">Logout</button>
             </div>
 
@@ -250,6 +250,10 @@
         const sendButton = document.getElementById('send-button');
         const logoutButton = document.getElementById('logout-button');
 
+        // Simple user identifier (you can enhance this later)
+        const userId = 'user_' + Math.random().toString(36).substr(2, 9);
+        const username = 'Anonymous'; // Default username since it's required by your table schema
+
         // Event listeners
         loginButton.addEventListener('click', handleLogin);
         sendButton.addEventListener('click', sendMessage);
@@ -270,11 +274,11 @@
             }
 
             try {
-                // Fetch password from Supabase (assuming table name is 'passwords')
+                // Fetch password from config table
                 const { data, error } = await supabase
-                    .from('passwords')
-                    .select('password')
-                    .eq('id', 1) // Assuming there's a record with id=1 containing the password
+                    .from('config')
+                    .select('value')
+                    .eq('key', 'chat_password')
                     .single();
 
                 if (error) {
@@ -283,7 +287,7 @@
                     return;
                 }
 
-                if (data && data.password === password) {
+                if (data && data.value === password) {
                     // Password matches, show chat page
                     passwordPage.classList.add('hidden');
                     chatPage.classList.remove('hidden');
@@ -301,7 +305,7 @@
         // Load messages from Supabase
         async function loadMessages() {
             try {
-                // Fetch messages from Supabase (assuming table name is 'messages')
+                // Fetch messages from messages table
                 const { data, error } = await supabase
                     .from('messages')
                     .select('*')
@@ -309,12 +313,14 @@
 
                 if (error) {
                     console.error('Error fetching messages:', error);
+                    messagesContainer.innerHTML = '<div class="loading">Error loading messages</div>';
                     return;
                 }
 
                 displayMessages(data);
             } catch (err) {
                 console.error('Error loading messages:', err);
+                messagesContainer.innerHTML = '<div class="loading">Error loading messages</div>';
             }
         }
 
@@ -331,12 +337,15 @@
                 const messageElement = document.createElement('div');
                 messageElement.classList.add('message');
 
-                // For simplicity, we'll treat all messages as received
-                // In a real app, you'd distinguish between sent and received messages
-                messageElement.classList.add('received');
+                // Check if message is from current user
+                if (message.user_id === userId) {
+                    messageElement.classList.add('sent');
+                } else {
+                    messageElement.classList.add('received');
+                }
 
                 messageElement.innerHTML = `
-                        <div>${message.content}</div>
+                        <div>${message.text}</div>
                         <div class="message-time">${formatTime(message.created_at)}</div>
                     `;
 
@@ -349,30 +358,34 @@
 
         // Send a new message
         async function sendMessage() {
-            const content = messageInput.value.trim();
+            const text = messageInput.value.trim();
 
-            if (!content) {
+            if (!text) {
                 return;
             }
 
             try {
-                // Insert message into Supabase
+                // Insert message into messages table
                 const { data, error } = await supabase
                     .from('messages')
-                    .insert([{ content }])
+                    .insert([{
+                        text: text,
+                        username: username, // Using default username since it's required
+                        user_id: userId
+                    }])
                     .select();
 
                 if (error) {
                     console.error('Error sending message:', error);
+                    showError('Error sending message');
                     return;
                 }
 
                 // Clear input
                 messageInput.value = '';
-
-                // The real-time subscription will handle updating the UI
             } catch (err) {
                 console.error('Error sending message:', err);
+                showError('Error sending message');
             }
         }
 
@@ -390,10 +403,17 @@
                         // Add new message to the UI
                         const newMessage = payload.new;
                         const messageElement = document.createElement('div');
-                        messageElement.classList.add('message', 'received');
+                        messageElement.classList.add('message');
+
+                        // Check if message is from current user
+                        if (newMessage.user_id === userId) {
+                            messageElement.classList.add('sent');
+                        } else {
+                            messageElement.classList.add('received');
+                        }
 
                         messageElement.innerHTML = `
-                                <div>${newMessage.content}</div>
+                                <div>${newMessage.text}</div>
                                 <div class="message-time">${formatTime(newMessage.created_at)}</div>
                             `;
 
@@ -427,21 +447,6 @@
             passwordInput.value = '';
             messagesContainer.innerHTML = '<div class="loading">Loading messages...</div>';
         }
-
-        // Initialize the app
-        function init() {
-            // Check if user is already logged in (in a real app, you'd use a more secure method)
-            const isLoggedIn = localStorage.getItem('isLoggedIn');
-            if (isLoggedIn) {
-                passwordPage.classList.add('hidden');
-                chatPage.classList.remove('hidden');
-                loadMessages();
-                setupRealtimeSubscription();
-            }
-        }
-
-        // Run initialization
-        init();
     </script>
 </body>
 </html>
