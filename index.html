@@ -1,0 +1,447 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Chat Application</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .page {
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .form-group {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+            input:focus {
+                border-color: #4a6cf7;
+                outline: none;
+            }
+
+        button {
+            background: linear-gradient(to right, #4a6cf7, #6a11cb);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+            font-weight: 600;
+        }
+
+            button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            }
+
+            button:active {
+                transform: translateY(0);
+            }
+
+        #error-message {
+            color: #e74c3c;
+            margin-top: 10px;
+            text-align: center;
+            min-height: 20px;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 500px;
+            width: 100%;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background-color: #f9f9f9;
+        }
+
+        .message {
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            border-radius: 18px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+
+            .message.sent {
+                background-color: #4a6cf7;
+                color: white;
+                margin-left: auto;
+                border-bottom-right-radius: 5px;
+            }
+
+            .message.received {
+                background-color: #e9ecef;
+                color: #333;
+                border-bottom-left-radius: 5px;
+            }
+
+        .message-time {
+            font-size: 0.7rem;
+            opacity: 0.7;
+            margin-top: 5px;
+            text-align: right;
+        }
+
+        .message-input-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        #message-input {
+            flex: 1;
+        }
+
+        #send-button {
+            width: auto;
+            padding: 12px 20px;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .logout-btn {
+            background: linear-gradient(to right, #e74c3c, #c0392b);
+            width: auto;
+            padding: 8px 15px;
+            font-size: 14px;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                max-width: 100%;
+            }
+
+            .page {
+                padding: 20px;
+            }
+
+            .chat-container {
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Password Page -->
+        <div id="password-page" class="page">
+            <h1>Secure Chat Login</h1>
+            <div class="form-group">
+                <label for="password-input">Enter Password:</label>
+                <input type="password" id="password-input" placeholder="Enter your password">
+            </div>
+            <button id="login-button">Login</button>
+            <div id="error-message"></div>
+        </div>
+
+        <!-- Chat Page -->
+        <div id="chat-page" class="page hidden">
+            <div class="header">
+                <h1>Secure Chat</h1>
+                <button id="logout-button" class="logout-btn">Logout</button>
+            </div>
+
+            <div class="chat-container">
+                <div id="messages-container" class="messages-container">
+                    <div class="loading">Loading messages...</div>
+                </div>
+
+                <div class="message-input-container">
+                    <input type="text" id="message-input" placeholder="Type your message...">
+                    <button id="send-button">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Supabase configuration - REPLACE WITH YOUR ACTUAL CREDENTIALS
+        const SUPABASE_URL = 'https://bnjetjarkqearjefhzll.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuamV0amFya3FlYXJqZWZoemxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5OTc5NzMsImV4cCI6MjA3NDU3Mzk3M30.rJa94S-ZsNd_kamRgY38FA3TaxyWDt8DtB2pfrKHLlk';
+
+        // Initialize Supabase client
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // DOM elements
+        const passwordPage = document.getElementById('password-page');
+        const chatPage = document.getElementById('chat-page');
+        const passwordInput = document.getElementById('password-input');
+        const loginButton = document.getElementById('login-button');
+        const errorMessage = document.getElementById('error-message');
+        const messagesContainer = document.getElementById('messages-container');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const logoutButton = document.getElementById('logout-button');
+
+        // Event listeners
+        loginButton.addEventListener('click', handleLogin);
+        sendButton.addEventListener('click', sendMessage);
+        logoutButton.addEventListener('click', logout);
+        messageInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Password validation and login
+        async function handleLogin() {
+            const password = passwordInput.value.trim();
+
+            if (!password) {
+                showError('Please enter a password');
+                return;
+            }
+
+            try {
+                // Fetch password from Supabase (assuming table name is 'passwords')
+                const { data, error } = await supabase
+                    .from('passwords')
+                    .select('password')
+                    .eq('id', 1) // Assuming there's a record with id=1 containing the password
+                    .single();
+
+                if (error) {
+                    console.error('Error fetching password:', error);
+                    showError('Error connecting to database');
+                    return;
+                }
+
+                if (data && data.password === password) {
+                    // Password matches, show chat page
+                    passwordPage.classList.add('hidden');
+                    chatPage.classList.remove('hidden');
+                    loadMessages();
+                    setupRealtimeSubscription();
+                } else {
+                    showError('Invalid password');
+                }
+            } catch (err) {
+                console.error('Login error:', err);
+                showError('An error occurred during login');
+            }
+        }
+
+        // Load messages from Supabase
+        async function loadMessages() {
+            try {
+                // Fetch messages from Supabase (assuming table name is 'messages')
+                const { data, error } = await supabase
+                    .from('messages')
+                    .select('*')
+                    .order('created_at', { ascending: true });
+
+                if (error) {
+                    console.error('Error fetching messages:', error);
+                    return;
+                }
+
+                displayMessages(data);
+            } catch (err) {
+                console.error('Error loading messages:', err);
+            }
+        }
+
+        // Display messages in the chat
+        function displayMessages(messages) {
+            messagesContainer.innerHTML = '';
+
+            if (!messages || messages.length === 0) {
+                messagesContainer.innerHTML = '<div class="loading">No messages yet. Start the conversation!</div>';
+                return;
+            }
+
+            messages.forEach(message => {
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message');
+
+                // For simplicity, we'll treat all messages as received
+                // In a real app, you'd distinguish between sent and received messages
+                messageElement.classList.add('received');
+
+                messageElement.innerHTML = `
+                        <div>${message.content}</div>
+                        <div class="message-time">${formatTime(message.created_at)}</div>
+                    `;
+
+                messagesContainer.appendChild(messageElement);
+            });
+
+            // Scroll to the bottom
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Send a new message
+        async function sendMessage() {
+            const content = messageInput.value.trim();
+
+            if (!content) {
+                return;
+            }
+
+            try {
+                // Insert message into Supabase
+                const { data, error } = await supabase
+                    .from('messages')
+                    .insert([{ content }])
+                    .select();
+
+                if (error) {
+                    console.error('Error sending message:', error);
+                    return;
+                }
+
+                // Clear input
+                messageInput.value = '';
+
+                // The real-time subscription will handle updating the UI
+            } catch (err) {
+                console.error('Error sending message:', err);
+            }
+        }
+
+        // Set up real-time subscription for new messages
+        function setupRealtimeSubscription() {
+            supabase
+                .channel('messages')
+                .on('postgres_changes',
+                    {
+                        event: 'INSERT',
+                        schema: 'public',
+                        table: 'messages'
+                    },
+                    (payload) => {
+                        // Add new message to the UI
+                        const newMessage = payload.new;
+                        const messageElement = document.createElement('div');
+                        messageElement.classList.add('message', 'received');
+
+                        messageElement.innerHTML = `
+                                <div>${newMessage.content}</div>
+                                <div class="message-time">${formatTime(newMessage.created_at)}</div>
+                            `;
+
+                        messagesContainer.appendChild(messageElement);
+
+                        // Scroll to the bottom
+                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    }
+                )
+                .subscribe();
+        }
+
+        // Format timestamp
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // Show error message
+        function showError(message) {
+            errorMessage.textContent = message;
+            setTimeout(() => {
+                errorMessage.textContent = '';
+            }, 5000);
+        }
+
+        // Logout function
+        function logout() {
+            chatPage.classList.add('hidden');
+            passwordPage.classList.remove('hidden');
+            passwordInput.value = '';
+            messagesContainer.innerHTML = '<div class="loading">Loading messages...</div>';
+        }
+
+        // Initialize the app
+        function init() {
+            // Check if user is already logged in (in a real app, you'd use a more secure method)
+            const isLoggedIn = localStorage.getItem('isLoggedIn');
+            if (isLoggedIn) {
+                passwordPage.classList.add('hidden');
+                chatPage.classList.remove('hidden');
+                loadMessages();
+                setupRealtimeSubscription();
+            }
+        }
+
+        // Run initialization
+        init();
+    </script>
+</body>
+</html>
