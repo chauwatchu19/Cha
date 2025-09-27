@@ -1,0 +1,286 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Login</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+            input:focus {
+                border-color: #5c6bc0;
+                outline: none;
+                box-shadow: 0 0 0 3px rgba(92, 107, 192, 0.1);
+            }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            background: #5c6bc0;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+            button:hover {
+                background: #3f51b5;
+            }
+
+            button:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+            }
+
+        .error {
+            color: #e53935;
+            margin-top: 15px;
+            min-height: 20px;
+            font-size: 14px;
+            padding: 10px;
+            background: #ffebee;
+            border-radius: 5px;
+            border-left: 4px solid #e53935;
+        }
+
+        .success {
+            color: #43a047;
+            margin-top: 15px;
+            min-height: 20px;
+            font-size: 14px;
+            padding: 10px;
+            background: #e8f5e9;
+            border-radius: 5px;
+            border-left: 4px solid #43a047;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Secure Chat Room</h1>
+        <p class="subtitle">Enter password to join the conversation</p>
+
+        <div class="form-group">
+            <label for="passwordInput">Password:</label>
+            <input type="password" id="passwordInput" placeholder="Enter chat password" autocomplete="off">
+        </div>
+
+        <button id="loginBtn">Enter Chat Room</button>
+
+        <div class="error" id="errorMessage"></div>
+        <div class="success" id="successMessage"></div>
+    </div>
+
+    <!-- Load Supabase FIRST -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script>
+        // Wait for the page to fully load
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('Page loaded, initializing Supabase...');
+
+            // Supabase configuration - REPLACE WITH YOUR ACTUAL CREDENTIALS
+            const SUPABASE_URL = 'https://bnjetjarkqearjefhzll.supabase.co';
+            const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuamV0amFya3FlYXJqZWZoemxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5OTc5NzMsImV4cCI6MjA3NDU3Mzk3M30.rJa94S-ZsNd_kamRgY38FA3TaxyWDt8DtB2pfrKHLlk';
+
+            // Check if Supabase is available
+            if (typeof supabase === 'undefined') {
+                showError('Supabase library failed to load. Please refresh the page.');
+                console.error('Supabase not loaded');
+                return;
+            }
+
+            console.log('Supabase library loaded successfully');
+
+            // Initialize Supabase
+            const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+            // DOM elements
+            const passwordInput = document.getElementById('passwordInput');
+            const loginBtn = document.getElementById('loginBtn');
+            const errorMessage = document.getElementById('errorMessage');
+            const successMessage = document.getElementById('successMessage');
+
+            // Check if already authenticated
+            if (localStorage.getItem('chat_authenticated') === 'true') {
+                showSuccess('Already authenticated! Redirecting...');
+                setTimeout(() => {
+                    window.location.href = 'chat.html';
+                }, 1000);
+                return;
+            }
+
+            // Login function
+            async function verifyPassword() {
+                const password = passwordInput.value.trim();
+                clearMessages();
+                loginBtn.disabled = true;
+                loginBtn.textContent = 'Verifying...';
+
+                if (!password) {
+                    showError('Please enter a password');
+                    resetButton();
+                    return;
+                }
+
+                try {
+                    console.log('Testing Supabase connection...');
+
+                    // Test basic connection first
+                    const connectionTest = await supabaseClient.from('messages').select('count', {
+                        count: 'exact',
+                        head: true
+                    });
+
+                    if (connectionTest.error) {
+                        throw new Error('Cannot connect to database: ' + connectionTest.error.message);
+                    }
+
+                    console.log('Database connection successful, verifying password...');
+
+                    // Call Supabase function to verify password
+                    const { data, error } = await supabaseClient.rpc('verify_chat_password', {
+                        input_password: password
+                    });
+
+                    if (error) {
+                        throw new Error('Function error: ' + error.message);
+                    }
+
+                    console.log('Password verification result:', data);
+
+                    if (data && data.success) {
+                        showSuccess('Password correct! Redirecting...');
+
+                        // Store authentication
+                        localStorage.setItem('chat_authenticated', 'true');
+                        localStorage.setItem('last_login', new Date().toISOString());
+
+                        // Redirect to chat page
+                        setTimeout(() => {
+                            window.location.href = 'chat.html';
+                        }, 1000);
+
+                    } else {
+                        showError(data.error || 'Invalid password');
+                        passwordInput.value = '';
+                        passwordInput.focus();
+                        resetButton();
+                    }
+
+                } catch (error) {
+                    console.error('Error:', error);
+                    showError('Error: ' + error.message);
+                    resetButton();
+                }
+            }
+
+            // Helper functions
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+                successMessage.style.display = 'none';
+            }
+
+            function showSuccess(message) {
+                successMessage.textContent = message;
+                successMessage.style.display = 'block';
+                errorMessage.style.display = 'none';
+            }
+
+            function clearMessages() {
+                errorMessage.textContent = '';
+                successMessage.textContent = '';
+                errorMessage.style.display = 'none';
+                successMessage.style.display = 'none';
+            }
+
+            function resetButton() {
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Enter Chat Room';
+            }
+
+            // Event listeners
+            loginBtn.addEventListener('click', verifyPassword);
+
+            passwordInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    verifyPassword();
+                }
+            });
+
+            // Auto-focus on password input
+            passwordInput.focus();
+
+            console.log('Chat app initialized successfully');
+        });
+
+        // Fallback error handler
+        window.addEventListener('error', function (e) {
+            console.error('Global error:', e.error);
+            const errorDiv = document.getElementById('errorMessage');
+            if (errorDiv) {
+                errorDiv.textContent = 'Script error: ' + e.error.message;
+                errorDiv.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
