@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Group Chat</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chat-header {
+            background: #5c6bc0;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .user-badge {
+            background: rgba(255,255,255,0.2);
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 14px;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f5f5f5;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 15px;
+            border-radius: 20px;
+            max-width: 80%;
+            word-break: break-word;
+            position: relative;
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .received {
+            background: #e8eaf6;
+            margin-right: auto;
+        }
+        
+        .sent {
+            background: #5c6bc0;
+            color: white;
+            margin-left: auto;
+        }
+        
+        .timestamp {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 5px;
+            text-align: right;
+        }
+        
+        .user-label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+        
+        .chat-input {
+            display: flex;
+            padding: 15px;
+            background: #fff;
+            border-top: 1px solid #eee;
+        }
+        
+        #messageInput {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            margin-right: 10px;
+            font-size: 16px;
+        }
+        
+        #sendButton {
+            width: auto;
+            padding: 12px 20px;
+            border-radius: 20px;
+            background: #5c6bc0;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        #sendButton:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 8px 15px;
+            cursor: pointer;
+            font-size: 14px;
+            border: none;
+            color: white;
+        }
+        
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            background: #4caf50;
+            color: white;
+            border-radius: 5px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+            transform: translateX(100%);
+            transition: transform 0.3s;
+            z-index: 1000;
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+        
+        .notification.error {
+            background: #f44336;
+        }
+        
+        .welcome-message {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+            font-style: italic;
+        }
+        
+        .typing-indicator {
+            color: #666;
+            font-style: italic;
+            padding: 10px 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-header">
+        <div class="header-info">
+            <h2>Group Chat</h2>
+            <div class="user-badge" id="userBadge">Loading...</div>
+        </div>
+        <button class="logout-btn" id="logoutButton">Leave Chat</button>
+    </div>
+    
+    <div class="chat-messages" id="chatMessages">
+        <div class="welcome-message">Loading messages...</div>
+    </div>
+    
+    <div class="chat-input">
+        <input type="text" id="messageInput" placeholder="Type your message..." maxlength="500">
+        <button id="sendButton">Send</button>
+    </div>
+
+    <div class="notification" id="notification">Message sent!</div>
+
+    <!-- Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <script>
+        // Supabase configuration - REPLACE WITH YOUR ACTUAL CREDENTIALS
+        const SUPABASE_URL = 'https://bnjetjarkqearjefhzll.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuamV0amFya3FlYXJqZWZoemxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5OTc5NzMsImV4cCI6MjA3NDU3Mzk3M30.rJa94S-ZsNd_kamRgY38FA3TaxyWDt8DtB2pfrKHLlk';
+
+        // Initialize Supabase
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // DOM elements
+        const chatMessages = document.getElementById('chatMessages');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const logoutButton = document.getElementById('logoutButton');
+        const notification = document.getElementById('notification');
+        const userBadge = document.getElementById('userBadge');
+        
+        // Generate random username for this session
+        const username = 'User' + Math.floor(Math.random() * 1000);
+        let messageCount = 0;
+        
+        // Check authentication
+        if (localStorage.getItem('chat_authenticated') !== 'true') {
+            window.location.href = 'index.html';
+            throw new Error('Not authenticated');
+        }
+        
+        // Set user badge
+        userBadge.textContent = username;
+        
+        // Load messages when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            loadMessages();
+            setupRealTimeUpdates();
+            messageInput.focus();
+        });
+        
+        // Load messages from Supabase
+        async function loadMessages() {
+            try {
+                const { data, error } = await supabase.rpc('get_chat_messages');
+                
+                if (error) {
+                    throw error;
+                }
+                
+                chatMessages.innerHTML = '';
+                
+                if (data && data.length > 0) {
+                    data.forEach(message => {
+                        addMessageToUI(message);
+                    });
+                } else {
+                    chatMessages.innerHTML = '<div class="welcome-message">No messages yet. Start the conversation!</div>';
+                }
+                
+                scrollToBottom();
+            } catch (error) {
+                console.error('Error loading messages:', error);
+                chatMessages.innerHTML = '<div class="welcome-message">Error loading messages. Please refresh.</div>';
+            }
+        }
+        
+        // Send message function
+        async function sendMessage() {
+            const text = messageInput.value.trim();
+            
+            if (!text) {
+                showNotification('Please enter a message', true);
+                return;
+            }
+            
+            if (text.length > 500) {
+                showNotification('Message too long (max 500 characters)', true);
+                return;
+            }
+            
+            sendButton.disabled = true;
+            sendButton.textContent = 'Sending...';
+            
+            try {
+                const { data, error } = await supabase.rpc('send_chat_message', {
+                    message_text: text,
+                    user_name: username
+                });
+                
+                if (error) {
+                    throw error;
+                }
+                
+                if (data.success) {
+                    messageInput.value = '';
+                    showNotification('Message sent!');
+                } else {
+                    showNotification(data.error || 'Error sending message', true);
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+                showNotification('Error sending message. Please try again.', true);
+            } finally {
+                sendButton.disabled = false;
+                sendButton.textContent = 'Send';
+                messageInput.focus();
+            }
+        }
+        
+        // Add message to UI
+        function addMessageToUI(message) {
+            // Clear welcome message if it exists
+            if (chatMessages.children.length === 1 && 
+                chatMessages.children[0].classList.contains('welcome-message')) {
+                chatMessages.innerHTML = '';
+            }
+            
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            
+            // Determine message style (sent/received)
+            const messageClass = message.username === username ? 'sent' : 'received';
+            messageElement.classList.add(messageClass);
+            
+            // Format timestamp
+            const time = new Date(message.created_at);
+            const timeString = time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            messageElement.innerHTML = `
+                <div class="user-label">${message.username}</div>
+                <div>${message.text}</div>
+                <div class="timestamp">${timeString}</div>
+            `;
+            
+            chatMessages.appendChild(messageElement);
+            scrollToBottom();
+        }
+        
+        // Setup real-time updates
+        function setupRealTimeUpdates() {
+            supabase
+                .channel('messages')
+                .on('postgres_changes', 
+                    { event: 'INSERT', schema: 'public', table: 'messages' },
+                    (payload) => {
+                        // Add new message to UI
+                        addMessageToUI(payload.new);
+                    }
+                )
+                .subscribe();
+        }
+        
+        // Scroll to bottom of chat
+        function scrollToBottom() {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // Show notification
+        function showNotification(text, isError = false) {
+            notification.textContent = text;
+            notification.classList.remove('error');
+            
+            if (isError) {
+                notification.classList.add('error');
+            }
+            
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Event listeners
+        sendButton.addEventListener('click', sendMessage);
+        
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        logoutButton.addEventListener('click', () => {
+            localStorage.removeItem('chat_authenticated');
+            localStorage.removeItem('last_login');
+            window.location.href = 'index.html';
+        });
+        
+        // Auto-focus message input
+        messageInput.focus();
+    </script>
+</body>
+</html>
