@@ -3,7 +3,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Secure Chat Application</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * {
             margin: 0;
@@ -231,222 +230,227 @@
         </div>
     </div>
 
+    <!-- Load Supabase JS first -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         // Supabase configuration - REPLACE WITH YOUR ACTUAL CREDENTIALS
         const SUPABASE_URL = 'https://bnjetjarkqearjefhzll.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuamV0amFya3FlYXJqZWZoemxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5OTc5NzMsImV4cCI6MjA3NDU3Mzk3M30.rJa94S-ZsNd_kamRgY38FA3TaxyWDt8DtB2pfrKHLlk';
 
-        // Initialize Supabase client
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // Wait for the DOM to be fully loaded
+        document.addEventListener('DOMContentLoaded', function () {
+            // Initialize Supabase client only after the script is loaded
+            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // DOM elements
-        const passwordPage = document.getElementById('password-page');
-        const chatPage = document.getElementById('chat-page');
-        const passwordInput = document.getElementById('password-input');
-        const loginButton = document.getElementById('login-button');
-        const errorMessage = document.getElementById('error-message');
-        const messagesContainer = document.getElementById('messages-container');
-        const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('send-button');
-        const logoutButton = document.getElementById('logout-button');
+            // DOM elements
+            const passwordPage = document.getElementById('password-page');
+            const chatPage = document.getElementById('chat-page');
+            const passwordInput = document.getElementById('password-input');
+            const loginButton = document.getElementById('login-button');
+            const errorMessage = document.getElementById('error-message');
+            const messagesContainer = document.getElementById('messages-container');
+            const messageInput = document.getElementById('message-input');
+            const sendButton = document.getElementById('send-button');
+            const logoutButton = document.getElementById('logout-button');
 
-        // Simple user identifier (you can enhance this later)
-        const userId = 'user_' + Math.random().toString(36).substr(2, 9);
-        const username = 'Anonymous'; // Default username since it's required by your table schema
+            // Simple user identifier
+            const userId = 'user_' + Math.random().toString(36).substr(2, 9);
+            const username = 'Anonymous';
 
-        // Event listeners
-        loginButton.addEventListener('click', handleLogin);
-        sendButton.addEventListener('click', sendMessage);
-        logoutButton.addEventListener('click', logout);
-        messageInput.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
-
-        // Password validation and login
-        async function handleLogin() {
-            const password = passwordInput.value.trim();
-
-            if (!password) {
-                showError('Please enter a password');
-                return;
-            }
-
-            try {
-                // Fetch password from config table
-                const { data, error } = await supabase
-                    .from('config')
-                    .select('value')
-                    .eq('key', 'chat_password')
-                    .single();
-
-                if (error) {
-                    console.error('Error fetching password:', error);
-                    showError('Error connecting to database');
-                    return;
+            // Event listeners
+            loginButton.addEventListener('click', handleLogin);
+            sendButton.addEventListener('click', sendMessage);
+            logoutButton.addEventListener('click', logout);
+            messageInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
                 }
-
-                if (data && data.value === password) {
-                    // Password matches, show chat page
-                    passwordPage.classList.add('hidden');
-                    chatPage.classList.remove('hidden');
-                    loadMessages();
-                    setupRealtimeSubscription();
-                } else {
-                    showError('Invalid password');
-                }
-            } catch (err) {
-                console.error('Login error:', err);
-                showError('An error occurred during login');
-            }
-        }
-
-        // Load messages from Supabase
-        async function loadMessages() {
-            try {
-                // Fetch messages from messages table
-                const { data, error } = await supabase
-                    .from('messages')
-                    .select('*')
-                    .order('created_at', { ascending: true });
-
-                if (error) {
-                    console.error('Error fetching messages:', error);
-                    messagesContainer.innerHTML = '<div class="loading">Error loading messages</div>';
-                    return;
-                }
-
-                displayMessages(data);
-            } catch (err) {
-                console.error('Error loading messages:', err);
-                messagesContainer.innerHTML = '<div class="loading">Error loading messages</div>';
-            }
-        }
-
-        // Display messages in the chat
-        function displayMessages(messages) {
-            messagesContainer.innerHTML = '';
-
-            if (!messages || messages.length === 0) {
-                messagesContainer.innerHTML = '<div class="loading">No messages yet. Start the conversation!</div>';
-                return;
-            }
-
-            messages.forEach(message => {
-                const messageElement = document.createElement('div');
-                messageElement.classList.add('message');
-
-                // Check if message is from current user
-                if (message.user_id === userId) {
-                    messageElement.classList.add('sent');
-                } else {
-                    messageElement.classList.add('received');
-                }
-
-                messageElement.innerHTML = `
-                        <div>${message.text}</div>
-                        <div class="message-time">${formatTime(message.created_at)}</div>
-                    `;
-
-                messagesContainer.appendChild(messageElement);
             });
 
-            // Scroll to the bottom
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
+            // Password validation and login
+            async function handleLogin() {
+                const password = passwordInput.value.trim();
 
-        // Send a new message
-        async function sendMessage() {
-            const text = messageInput.value.trim();
-
-            if (!text) {
-                return;
-            }
-
-            try {
-                // Insert message into messages table
-                const { data, error } = await supabase
-                    .from('messages')
-                    .insert([{
-                        text: text,
-                        username: username, // Using default username since it's required
-                        user_id: userId
-                    }])
-                    .select();
-
-                if (error) {
-                    console.error('Error sending message:', error);
-                    showError('Error sending message');
+                if (!password) {
+                    showError('Please enter a password');
                     return;
                 }
 
-                // Clear input
-                messageInput.value = '';
-            } catch (err) {
-                console.error('Error sending message:', err);
-                showError('Error sending message');
-            }
-        }
+                try {
+                    // Fetch password from config table
+                    const { data, error } = await supabase
+                        .from('config')
+                        .select('value')
+                        .eq('key', 'chat_password')
+                        .single();
 
-        // Set up real-time subscription for new messages
-        function setupRealtimeSubscription() {
-            supabase
-                .channel('messages')
-                .on('postgres_changes',
-                    {
-                        event: 'INSERT',
-                        schema: 'public',
-                        table: 'messages'
-                    },
-                    (payload) => {
-                        // Add new message to the UI
-                        const newMessage = payload.new;
-                        const messageElement = document.createElement('div');
-                        messageElement.classList.add('message');
-
-                        // Check if message is from current user
-                        if (newMessage.user_id === userId) {
-                            messageElement.classList.add('sent');
-                        } else {
-                            messageElement.classList.add('received');
-                        }
-
-                        messageElement.innerHTML = `
-                                <div>${newMessage.text}</div>
-                                <div class="message-time">${formatTime(newMessage.created_at)}</div>
-                            `;
-
-                        messagesContainer.appendChild(messageElement);
-
-                        // Scroll to the bottom
-                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    if (error) {
+                        console.error('Error fetching password:', error);
+                        showError('Error connecting to database');
+                        return;
                     }
-                )
-                .subscribe();
-        }
 
-        // Format timestamp
-        function formatTime(timestamp) {
-            const date = new Date(timestamp);
-            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        }
+                    if (data && data.value === password) {
+                        // Password matches, show chat page
+                        passwordPage.classList.add('hidden');
+                        chatPage.classList.remove('hidden');
+                        loadMessages();
+                        setupRealtimeSubscription();
+                    } else {
+                        showError('Invalid password');
+                    }
+                } catch (err) {
+                    console.error('Login error:', err);
+                    showError('An error occurred during login');
+                }
+            }
 
-        // Show error message
-        function showError(message) {
-            errorMessage.textContent = message;
-            setTimeout(() => {
-                errorMessage.textContent = '';
-            }, 5000);
-        }
+            // Load messages from Supabase
+            async function loadMessages() {
+                try {
+                    // Fetch messages from messages table
+                    const { data, error } = await supabase
+                        .from('messages')
+                        .select('*')
+                        .order('created_at', { ascending: true });
 
-        // Logout function
-        function logout() {
-            chatPage.classList.add('hidden');
-            passwordPage.classList.remove('hidden');
-            passwordInput.value = '';
-            messagesContainer.innerHTML = '<div class="loading">Loading messages...</div>';
-        }
+                    if (error) {
+                        console.error('Error fetching messages:', error);
+                        messagesContainer.innerHTML = '<div class="loading">Error loading messages</div>';
+                        return;
+                    }
+
+                    displayMessages(data);
+                } catch (err) {
+                    console.error('Error loading messages:', err);
+                    messagesContainer.innerHTML = '<div class="loading">Error loading messages</div>';
+                }
+            }
+
+            // Display messages in the chat
+            function displayMessages(messages) {
+                messagesContainer.innerHTML = '';
+
+                if (!messages || messages.length === 0) {
+                    messagesContainer.innerHTML = '<div class="loading">No messages yet. Start the conversation!</div>';
+                    return;
+                }
+
+                messages.forEach(message => {
+                    const messageElement = document.createElement('div');
+                    messageElement.classList.add('message');
+
+                    // Check if message is from current user
+                    if (message.user_id === userId) {
+                        messageElement.classList.add('sent');
+                    } else {
+                        messageElement.classList.add('received');
+                    }
+
+                    messageElement.innerHTML = `
+                            <div>${message.text}</div>
+                            <div class="message-time">${formatTime(message.created_at)}</div>
+                        `;
+
+                    messagesContainer.appendChild(messageElement);
+                });
+
+                // Scroll to the bottom
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            // Send a new message
+            async function sendMessage() {
+                const text = messageInput.value.trim();
+
+                if (!text) {
+                    return;
+                }
+
+                try {
+                    // Insert message into messages table
+                    const { data, error } = await supabase
+                        .from('messages')
+                        .insert([{
+                            text: text,
+                            username: username,
+                            user_id: userId
+                        }])
+                        .select();
+
+                    if (error) {
+                        console.error('Error sending message:', error);
+                        showError('Error sending message');
+                        return;
+                    }
+
+                    // Clear input
+                    messageInput.value = '';
+                } catch (err) {
+                    console.error('Error sending message:', err);
+                    showError('Error sending message');
+                }
+            }
+
+            // Set up real-time subscription for new messages
+            function setupRealtimeSubscription() {
+                supabase
+                    .channel('messages')
+                    .on('postgres_changes',
+                        {
+                            event: 'INSERT',
+                            schema: 'public',
+                            table: 'messages'
+                        },
+                        (payload) => {
+                            // Add new message to the UI
+                            const newMessage = payload.new;
+                            const messageElement = document.createElement('div');
+                            messageElement.classList.add('message');
+
+                            // Check if message is from current user
+                            if (newMessage.user_id === userId) {
+                                messageElement.classList.add('sent');
+                            } else {
+                                messageElement.classList.add('received');
+                            }
+
+                            messageElement.innerHTML = `
+                                    <div>${newMessage.text}</div>
+                                    <div class="message-time">${formatTime(newMessage.created_at)}</div>
+                                `;
+
+                            messagesContainer.appendChild(messageElement);
+
+                            // Scroll to the bottom
+                            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                        }
+                    )
+                    .subscribe();
+            }
+
+            // Format timestamp
+            function formatTime(timestamp) {
+                const date = new Date(timestamp);
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+
+            // Show error message
+            function showError(message) {
+                errorMessage.textContent = message;
+                setTimeout(() => {
+                    errorMessage.textContent = '';
+                }, 5000);
+            }
+
+            // Logout function
+            function logout() {
+                chatPage.classList.add('hidden');
+                passwordPage.classList.remove('hidden');
+                passwordInput.value = '';
+                messagesContainer.innerHTML = '<div class="loading">Loading messages...</div>';
+            }
+        });
     </script>
 </body>
 </html>
