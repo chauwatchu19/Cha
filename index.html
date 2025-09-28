@@ -268,42 +268,53 @@
             });
 
             // Password validation and login
-            async function handleLogin() {
-                const password = passwordInput.value.trim();
+           async function handleLogin() {
+    const password = passwordInput.value.trim();
 
-                if (!password) {
-                    showError('Please enter a password');
-                    return;
-                }
+    if (!password) {
+        showError('Please enter a password');
+        return;
+    }
 
-                try {
-                    // Fetch password from config table
-                    const { data, error } = await supabase
-                        .from('config')
-                        .select('value')
-                        .eq('key', 'chat_password')
-                        .single();
+    try {
+        console.log('Attempting to connect to Supabase...');
+        console.log('URL:', SUPABASE_URL);
+        
+        // Test connection first
+        const { data, error } = await supabase
+            .from('config')
+            .select('value')
+            .eq('key', 'chat_password')
+            .single();
 
-                    if (error) {
-                        console.error('Error fetching password:', error);
-                        showError('Error connecting to database');
-                        return;
-                    }
+        console.log('Full response:', { data, error });
 
-                    if (data && data.value === password) {
-                        // Password matches, show chat page
-                        passwordPage.classList.add('hidden');
-                        chatPage.classList.remove('hidden');
-                        loadMessages();
-                        setupRealtimeSubscription();
-                    } else {
-                        showError('Invalid password');
-                    }
-                } catch (err) {
-                    console.error('Login error:', err);
-                    showError('An error occurred during login');
-                }
+        if (error) {
+            console.error('Supabase error details:', error);
+            if (error.code === 'PGRST301') {
+                showError('Table not found. Check your database setup.');
+            } else if (error.code === '42501') {
+                showError('Permission denied. Check RLS policies.');
+            } else {
+                showError('Database error: ' + error.message);
             }
+            return;
+        }
+
+        if (data && data.value === password) {
+            // Password matches
+            passwordPage.classList.add('hidden');
+            chatPage.classList.remove('hidden');
+            loadMessages();
+            setupRealtimeSubscription();
+        } else {
+            showError('Invalid password');
+        }
+    } catch (err) {
+        console.error('Unexpected error:', err);
+        showError('Connection failed: ' + err.message);
+    }
+}
 
             // Load messages from Supabase
             async function loadMessages() {
@@ -449,8 +460,9 @@
                 passwordPage.classList.remove('hidden');
                 passwordInput.value = '';
                 messagesContainer.innerHTML = '<div class="loading">Loading messages...</div>';
-            }
+        }
         });
     </script>
 </body>
 </html>
+
